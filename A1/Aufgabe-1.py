@@ -249,7 +249,7 @@ cycle = [0, 3, 1, 2, 0]
 #visualize_graph(line_graph)
 
 # Beispielcode zur Verwendung der visualize_graph-Funktion
-edge_list = [(0, 1), (1, 2), (2, 0)]
+edge_list = [(0, 1), (1, 2), (2, 0), (1,0), (2,1), (0,2)]
 graph = Graph(edge_list=edge_list)
-#visualize_graph(graph)
+visualize_graph(graph)
 print("Eulerian Circuit:", graph.find_eulerian_circuit())
