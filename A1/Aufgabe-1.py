@@ -2,6 +2,7 @@
 import graphviz
 import numpy as np
 import heapq
+from collections import deque
 
 class Digraph:
     def __init__(self, edge_list=None):
@@ -354,6 +355,53 @@ class Graph(Digraph):
                 return 0
         path.append(t)
         return 1
+
+    def bfs_minimum_spanning_tree(self, start_node):
+        visited = set()
+        queue = deque([start_node])
+        spanning_tree_edges = []
+
+        while queue:
+            node = queue.popleft()
+            if node not in visited:
+                visited.add(node)
+                for neighbor in self.adj_list[node]:
+                    if neighbor not in visited:
+                        spanning_tree_edges.append((node, neighbor))
+                        queue.append(neighbor)
+
+        return spanning_tree_edges
+
+    def bfs_girth(self, start_node):
+        visited = {start_node: 0}
+        queue = deque([(start_node, -1)])
+        min_cycle_length = float('inf')
+
+        while queue:
+            current_node, parent = queue.popleft()
+
+            for neighbor in self.adj_list[current_node]:
+                if neighbor == start_node and parent == start_node:
+                    return 2
+                if neighbor not in visited:
+                    visited[neighbor] = visited[current_node] + 1
+                    queue.append((neighbor, current_node))
+                elif neighbor != parent:
+                    # Found a cycle
+                    cycle_length = visited[current_node] + visited[neighbor] + 1
+                    min_cycle_length = min(min_cycle_length, cycle_length)
+
+        return min_cycle_length
+
+    def compute_girth(self):
+        min_girth = float('inf')
+        for node in self.adj_list:
+            current_girth = self.bfs_girth(node)
+            if current_girth < min_girth:
+                min_girth = current_girth
+
+        return min_girth if min_girth != float('inf') else -1  # -1 indicates no cycle
+
 # Erstellen eines Graphen mit Graphviz
 def visualize_graph(pgraph):
     # Check if the graph is directed or not
@@ -377,29 +425,19 @@ def visualize_graph(pgraph):
     dot.view()
 
 # Beispielcode zur Verwendung der visualize_graph-Funktion
-edge_list = [(0, 1), (2, 0), (1,3), (3,1), (2,3), (3,2), (2,4), (4,2), (4,5), (5,4), (3,4) ]
+edge_list = [
+    (0, 1), (1,2), (3, 1), (3, 2),
+    (2, 4), (4, 5), (4,2)
+]
 graph = Graph(edge_list=edge_list)
 visualize_graph(graph)
+#start_node = 0
+#mst_edges = graph.bfs_minimum_spanning_tree(start_node)
+#print("Minimum Spanning Tree Edges:")
+# edge in mst_edges:
+#    print(edge)
 
-result = graph.floyd_warshall()
-
-if isinstance(result, tuple):
-    dist, next_node = result
-    closeness = graph.closeness_centrality(dist)
-    betweenness = graph.betweenness_centrality(dist, next_node)
-
-    print("Distanzmatrix:")
-    for src, dests in dist.items():
-        for dest, distance in dests.items():
-            print(f"Distanz von {src} zu {dest}: {distance}")
-
-    print("\nCloseness Centrality:")
-    for node, centrality in closeness.items():
-        print(f"Closeness Centrality von {node}: {centrality}")
-
-    print("\nBetweenness Centrality:")
-    for node, centrality in betweenness.items():
-        print(f"Betweenness Centrality von {node}: {centrality}")
-else:
-    print("Negativer Zyklus gefunden:")
-    print(" -> ".join(str(node) for node in result))
+#spanning_tree = Graph(edge_list=mst_edges)
+#visualize_graph(spanning_tree)
+girth = graph.compute_girth() # length of the shortest cycle in the graph
+print(f"Girth of the graph: {girth}")
