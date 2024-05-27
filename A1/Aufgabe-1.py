@@ -1,5 +1,6 @@
 # graphviz nutzen um Graphen zu visualisieren
 import graphviz
+import numpy as np
 
 class Digraph:
     def __init__(self, edge_list=None):
@@ -216,6 +217,33 @@ class Graph(Digraph):
             return False
         return self.is_path(sequence)
 
+    # Method to compute the eigenvalue centrality of the graph
+    def eigenvalue_centrality(self):
+        # Create the adjacency matrix
+        nodes = list(self.adj_list.keys())
+        n = len(nodes)
+        adj_matrix = np.zeros((n, n))
+
+        for i, node in enumerate(nodes):
+            for neighbor in self.adj_list[node]:
+                j = nodes.index(neighbor)
+                adj_matrix[i, j] = 1
+
+        # Compute the eigenvalues and eigenvectors
+        eigenvalues, eigenvectors = np.linalg.eig(adj_matrix)
+
+        # Find the eigenvector corresponding to the largest eigenvalue
+        largest_eigenvalue_index = np.argmax(eigenvalues)
+        centrality_vector = eigenvectors[:, largest_eigenvalue_index]
+
+        # Normalize the centrality vector
+        centrality_vector = np.abs(centrality_vector)
+        centrality_vector /= centrality_vector.sum()
+
+        # Map the centrality values back to the nodes
+        centrality = {nodes[i]: centrality_vector[i] for i in range(n)}
+
+        return centrality
 
 # Erstellen eines Graphen mit Graphviz
 def visualize_graph(pgraph):
@@ -252,4 +280,5 @@ cycle = [0, 3, 1, 2, 0]
 edge_list = [(0, 1), (1, 2), (2, 0), (1,0), (2,1), (0,2)]
 graph = Graph(edge_list=edge_list)
 visualize_graph(graph)
-print("Eulerian Circuit:", graph.find_eulerian_circuit())
+centrality = graph.eigenvalue_centrality()
+print("Eigenvalue Centrality:", centrality)
