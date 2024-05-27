@@ -1,6 +1,7 @@
 # graphviz nutzen um Graphen zu visualisieren
 import graphviz
 import numpy as np
+import heapq
 
 class Digraph:
     def __init__(self, edge_list=None):
@@ -244,7 +245,44 @@ class Graph(Digraph):
         centrality = {nodes[i]: centrality_vector[i] for i in range(n)}
 
         return centrality
+    # Method to compute the shortest paths using Dijkstra's algorithm
+    def dijkstra(self, start_node):
+        # Initialisieren von Distanzen und dem Prioritätswarteschlange
+        distances = {node: float('inf') for node in self.adj_list}
+        distances[start_node] = 0
+        priority_queue = [(0, start_node)]
 
+        # Verarbeitete Knoten
+        visited = set()
+
+        while priority_queue:
+            current_distance, current_node = heapq.heappop(priority_queue)
+
+            if current_node in visited:
+                continue
+
+            visited.add(current_node)
+
+            for neighbor in self.adj_list[current_node]:
+                weight = self.weights[(current_node, neighbor)]
+                distance = current_distance + weight
+
+                if distance < distances[neighbor]:
+                    distances[neighbor] = distance
+                    heapq.heappush(priority_queue, (distance, neighbor))
+
+        return distances
+
+    def reconstruct_path(self, previous_nodes, start, end):
+        path = []
+        current_node = end
+        while current_node != start:
+            if current_node is None:
+                return []
+            path.insert(0, current_node)
+            current_node = previous_nodes[current_node]
+        path.insert(0, start)
+        return path
 # Erstellen eines Graphen mit Graphviz
 def visualize_graph(pgraph):
     # Check if the graph is directed or not
@@ -277,8 +315,10 @@ cycle = [0, 3, 1, 2, 0]
 #visualize_graph(line_graph)
 
 # Beispielcode zur Verwendung der visualize_graph-Funktion
-edge_list = [(0, 1), (1, 2), (2, 0), (1,0), (2,1), (0,2)]
+edge_list = [(0, 1), (2, 0), (1,3), (3,1), (2,3), (3,2), (2,4), (4,2), (4,5), (5,4), (3,4) ]
 graph = Graph(edge_list=edge_list)
 visualize_graph(graph)
-centrality = graph.eigenvalue_centrality()
-print("Eigenvalue Centrality:", centrality)
+start = 0
+end = 3
+distances = graph.dijkstra(start)
+print(f"Kürzeste Distanz von {start} zu {end}: {distances[end]}")
