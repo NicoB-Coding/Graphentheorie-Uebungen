@@ -262,7 +262,7 @@ class Graph(Digraph):
                 continue
 
             visited.add(current_node)
-
+            # Überprüfen der Nachbarn
             for neighbor in self.adj_list[current_node]:
                 weight = self.weights[(current_node, neighbor)]
                 distance = current_distance + weight
