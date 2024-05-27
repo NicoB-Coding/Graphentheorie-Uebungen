@@ -273,16 +273,87 @@ class Graph(Digraph):
 
         return distances
 
-    def reconstruct_path(self, previous_nodes, start, end):
+    def floyd_warshall(self):
+        # Initialisierung der Distanz- und Vorgängermatrix
+        nodes = list(self.adj_list.keys())
+        dist = {i: {j: float('inf') for j in nodes} for i in nodes}
+        next_node = {i: {j: None for j in nodes} for i in nodes}
+
+        for node in nodes:
+            dist[node][node] = 0
+        for (src, dest), weight in self.weights.items():
+            dist[src][dest] = weight
+            next_node[src][dest] = dest
+
+        # Floyd-Warshall Algorithmus
+        for k in nodes:
+            for i in nodes:
+                for j in nodes:
+                    if dist[i][j] > dist[i][k] + dist[k][j]:
+                        dist[i][j] = dist[i][k] + dist[k][j]
+                        next_node[i][j] = next_node[i][k]
+
+        # Überprüfung auf negative Zyklen
+        for node in nodes:
+            if dist[node][node] < 0:
+                return self.find_negative_cycle(next_node, node)
+
+        return dist, next_node
+
+    def find_negative_cycle(self, next_node, start_node):
+        # Finden eines negativen Zyklus unter Verwendung der Vorgängermatrix
+        cycle = []
+        visited = {node: False for node in next_node}
+        current_node = start_node
+
+        while not visited[current_node]:
+            visited[current_node] = True
+            current_node = next_node[current_node][start_node]
+
+        cycle_start = current_node
+        cycle.append(cycle_start)
+        current_node = next_node[current_node][start_node]
+
+        while current_node != cycle_start:
+            cycle.append(current_node)
+            current_node = next_node[current_node][start_node]
+
+        cycle.append(cycle_start)
+        return cycle
+    def closeness_centrality(self, dist):
+        closeness = {}
+        for v in dist:
+            total_distance = sum(dist[u][v] for u in dist if u != v)
+            if total_distance > 0:
+                closeness[v] = 1 / total_distance
+            else:
+                closeness[v] = 0
+        return closeness
+
+    def betweenness_centrality(self, dist, next_node):
+        betweenness = {v: 0 for v in dist}
+        for s in dist:
+            for t in dist:
+                if s != t:
+                    path_count = self.count_paths(s, t, next_node)
+                    for v in dist:
+                        if v != s and v != t:
+                            path_through_v = self.count_paths(s, v, next_node) * self.count_paths(v, t, next_node)
+                            betweenness[v] += path_through_v / path_count
+        return betweenness
+
+    def count_paths(self, s, t, next_node):
+        if next_node[s][t] is None:
+            return 0
         path = []
-        current_node = end
-        while current_node != start:
+        current_node = s
+        while current_node != t:
+            path.append(current_node)
+            current_node = next_node[current_node][t]
             if current_node is None:
-                return []
-            path.insert(0, current_node)
-            current_node = previous_nodes[current_node]
-        path.insert(0, start)
-        return path
+                return 0
+        path.append(t)
+        return 1
 # Erstellen eines Graphen mit Graphviz
 def visualize_graph(pgraph):
     # Check if the graph is directed or not
@@ -305,20 +376,30 @@ def visualize_graph(pgraph):
     dot.render('graph', format='png', cleanup=True)
     dot.view()
 
-#print("Anzahl der Knoten mit ungeradem Grad:", graph.count_nodes_with_odd_degree())
-path = [0,3,1,2,0]
-cycle = [0, 3, 1, 2, 0]
-#print("Ist die Sequenz ein Pfad?:", graph.is_path(path))
-#print("Ist die Sequenz ein Hamiltonkreis?:", graph.is_hamiltonian_cycle(cycle))
-# visualize line graph
-#line_graph = graph.line_graph()
-#visualize_graph(line_graph)
-
 # Beispielcode zur Verwendung der visualize_graph-Funktion
 edge_list = [(0, 1), (2, 0), (1,3), (3,1), (2,3), (3,2), (2,4), (4,2), (4,5), (5,4), (3,4) ]
 graph = Graph(edge_list=edge_list)
 visualize_graph(graph)
-start = 0
-end = 3
-distances = graph.dijkstra(start)
-print(f"Kürzeste Distanz von {start} zu {end}: {distances[end]}")
+
+result = graph.floyd_warshall()
+
+if isinstance(result, tuple):
+    dist, next_node = result
+    closeness = graph.closeness_centrality(dist)
+    betweenness = graph.betweenness_centrality(dist, next_node)
+
+    print("Distanzmatrix:")
+    for src, dests in dist.items():
+        for dest, distance in dests.items():
+            print(f"Distanz von {src} zu {dest}: {distance}")
+
+    print("\nCloseness Centrality:")
+    for node, centrality in closeness.items():
+        print(f"Closeness Centrality von {node}: {centrality}")
+
+    print("\nBetweenness Centrality:")
+    for node, centrality in betweenness.items():
+        print(f"Betweenness Centrality von {node}: {centrality}")
+else:
+    print("Negativer Zyklus gefunden:")
+    print(" -> ".join(str(node) for node in result))
