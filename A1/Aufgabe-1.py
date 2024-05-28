@@ -402,6 +402,120 @@ class Graph(Digraph):
 
         return min_girth if min_girth != float('inf') else -1  # -1 indicates no cycle
 
+    def prim_jarnik(self, start_vertex):
+        if start_vertex not in self.adj_list:
+            return None
+
+        mst = Graph()
+        total_cost = 0
+        visited = set([start_vertex])
+        edges = [(weight, src, dest) for (src, dest), weight in self.weights.items() if src == start_vertex]
+        heapq.heapify(edges)
+
+        while edges:
+            weight, src, dest = heapq.heappop(edges)
+            if dest in visited:
+                continue
+
+            mst.add_edge(src, dest, weight)
+            total_cost += weight
+            visited.add(dest)
+
+            for next_dest in self.adj_list[dest]:
+                if next_dest not in visited:
+                    heapq.heappush(edges, (self.weights[(dest, next_dest)], dest, next_dest))
+
+        return total_cost, mst
+
+    def kruskal(self):
+        parent = {}
+        rank = {}
+
+        def find(vertex):
+            if parent[vertex] != vertex:
+                parent[vertex] = find(parent[vertex])
+            return parent[vertex]
+
+        def union(vertex1, vertex2):
+            root1 = find(vertex1)
+            root2 = find(vertex2)
+            if root1 != root2:
+                if rank[root1] > rank[root2]:
+                    parent[root2] = root1
+                else:
+                    parent[root1] = root2
+                    if rank[root1] == rank[root2]:
+                        rank[root2] += 1
+
+        mst = Graph()
+        edges = sorted(self.weights.items(), key=lambda item: item[1])
+
+        for vertex in self.adj_list:
+            parent[vertex] = vertex
+            rank[vertex] = 0
+
+        total_cost = 0
+
+        for (src, dest), weight in edges:
+            if find(src) != find(dest):
+                union(src, dest)
+                mst.add_edge(src, dest, weight)
+                total_cost += weight
+
+        return total_cost, mst
+
+    def boruvka(self):
+        parent = {}
+        rank = {}
+
+        def find(vertex):
+            if parent[vertex] != vertex:
+                parent[vertex] = find(parent[vertex])
+            return parent[vertex]
+
+        def union(vertex1, vertex2):
+            root1 = find(vertex1)
+            root2 = find(vertex2)
+            if root1 != root2:
+                if rank[root1] > rank[root2]:
+                    parent[root2] = root1
+                else:
+                    parent[root1] = root2
+                    if rank[root1] == rank[root2]:
+                        rank[root2] += 1
+
+        mst = Graph()
+        total_cost = 0
+
+        for vertex in self.adj_list:
+            parent[vertex] = vertex
+            rank[vertex] = 0
+
+        num_components = len(self.adj_list)
+
+        while num_components > 1:
+            cheapest = {}
+            for vertex in self.adj_list:
+                for neighbor in self.adj_list[vertex]:
+                    root1 = find(vertex)
+                    root2 = find(neighbor)
+                    if root1 != root2:
+                        weight = self.weights[(vertex, neighbor)]
+                        if root1 not in cheapest or cheapest[root1][0] > weight:
+                            cheapest[root1] = (weight, vertex, neighbor)
+                        if root2 not in cheapest or cheapest[root2][0] > weight:
+                            cheapest[root2] = (weight, vertex, neighbor)
+
+            for root in cheapest:
+                weight, src, dest = cheapest[root]
+                if find(src) != find(dest):
+                    union(src, dest)
+                    mst.add_edge(src, dest, weight)
+                    total_cost += weight
+                    num_components -= 1
+
+        return total_cost, mst
+
 # Erstellen eines Graphen mit Graphviz
 def visualize_graph(pgraph):
     # Check if the graph is directed or not
@@ -426,18 +540,12 @@ def visualize_graph(pgraph):
 
 # Beispielcode zur Verwendung der visualize_graph-Funktion
 edge_list = [
-    (0, 1), (1,2), (3, 1), (3, 2),
-    (2, 4), (4, 5), (4,2)
+    (0, 1, 2), (1,2, 3), (3, 1,6), (3, 2,8),
+    (2, 4,7), (4, 5,1), (4,2,4), (1,3,5)
 ]
 graph = Graph(edge_list=edge_list)
 visualize_graph(graph)
-#start_node = 0
-#mst_edges = graph.bfs_minimum_spanning_tree(start_node)
-#print("Minimum Spanning Tree Edges:")
-# edge in mst_edges:
-#    print(edge)
-
-#spanning_tree = Graph(edge_list=mst_edges)
-#visualize_graph(spanning_tree)
-girth = graph.compute_girth() # length of the shortest cycle in the graph
-print(f"Girth of the graph: {girth}")
+start_node = 0
+mst_cost, mst_edges = graph.boruvka()
+print(f"Minimum Spanning Tree Cost: {mst_cost}")
+print(mst_edges)
