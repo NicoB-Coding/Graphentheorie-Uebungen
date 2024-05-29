@@ -56,10 +56,15 @@ class Digraph:
 
 class Graph(Digraph):
     def __init__(self, edge_list=None):
+        self.flow = {}  # Dictionary to track the flow of each edge
         super().__init__(edge_list=edge_list)
 
     def add_edge(self, src, dest, weight=1, capacity=float('inf')):
         super().add_edge(src, dest, weight, capacity)
+        if (dest, src) not in self.capacities:
+            super().add_edge(dest, src, weight, 0)  # Add reverse edge with 0 capacity
+        self.flow[(src, dest)] = 0
+        self.flow[(dest, src)] = 0
 
     # Method to check if a given cycle is a Hamiltonian cycle
     def is_hamiltonian_cycle(self, cycle):
@@ -464,6 +469,30 @@ class Graph(Digraph):
 
         return total_cost, mst
 
+    def find_path(self, source, sink, path, visited):
+        if source == sink:
+            return path
+        visited.add(source)
+        for neighbor in self.adj_list[source]:
+            if neighbor not in visited and self.capacities[(source, neighbor)] - self.flow[(source, neighbor)] > 0:
+                result = self.find_path(neighbor, sink, path + [(source, neighbor)], visited)
+                if result is not None:
+                    return result
+        return None
+
+    def ford_fulkerson(self, source, sink):
+        max_flow = 0
+        while True:
+            visited = set()
+            path = self.find_path(source, sink, [], visited)
+            if path is None:
+                break
+            flow = min(self.capacities[edge] - self.flow[edge] for edge in path)
+            for u, v in path:
+                self.flow[(u, v)] += flow
+                self.flow[(v, u)] -= flow
+            max_flow += flow
+        return max_flow
     def boruvka(self):
         parent = {}
         rank = {}
@@ -516,6 +545,7 @@ class Graph(Digraph):
 
         return total_cost, mst
 
+
 # Erstellen eines Graphen mit Graphviz
 def visualize_graph(pgraph):
     # Check if the graph is directed or not
@@ -538,14 +568,34 @@ def visualize_graph(pgraph):
     dot.render('graph', format='png', cleanup=True)
     dot.view()
 
-# Beispielcode zur Verwendung der visualize_graph-Funktion
+def visualize_flow_network(flow_network):
+    # Create a directed graph using graphviz
+    dot = graphviz.Digraph()
+
+    for src in flow_network.adj_list:
+        dot.node(str(src))
+        for dest in flow_network.adj_list[src]:
+            # Only show edges with capacity greater than 0
+            if flow_network.capacities[(src, dest)] > 0:
+                # Add the edge with flow and capacity as the label
+                capacity = flow_network.capacities[(src, dest)]
+                current_flow = flow_network.flow[(src, dest)]
+                dot.edge(str(src), str(dest), label=f"{current_flow}/{capacity}")
+
+    dot.render('flow_network', format='png', cleanup=True)
+    dot.view()
+
+
 edge_list = [
-    (0, 1, 2), (1,2, 3), (3, 1,6), (3, 2,8),
-    (2, 4,7), (4, 5,1), (4,2,4), (1,3,5)
+    ('S', 'A', 1, 16),
+    ('S', 'B', 1, 13),
+    ('B', 'T', 1, 7),
+    ('A', 'B', 1, 10),
+    ('A', 'T', 1, 4),
 ]
-graph = Graph(edge_list=edge_list)
-visualize_graph(graph)
-start_node = 0
-mst_cost, mst_edges = graph.boruvka()
-print(f"Minimum Spanning Tree Cost: {mst_cost}")
-print(mst_edges)
+
+graph = Graph(edge_list)
+source, sink = 'S', 'T'
+max_flow = graph.ford_fulkerson(source, sink)
+print(f"Der maximale Fluss von {source} nach {sink} ist {max_flow}.")
+visualize_flow_network(graph)
