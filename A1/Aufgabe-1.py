@@ -1,6 +1,7 @@
 # graphviz nutzen um Graphen zu visualisieren
 import graphviz
 import numpy as np
+import pandas as pd
 import heapq
 from collections import deque
 
@@ -61,7 +62,7 @@ class Graph(Digraph):
 
     def add_edge(self, src, dest, weight=1, capacity=float('inf')):
         super().add_edge(src, dest, weight, capacity)
-        if (dest, src) not in self.capacities:
+        if (dest, src) not in self.capacities and capacity != float('inf'):
             super().add_edge(dest, src, weight, 0)  # Add reverse edge with 0 capacity
         self.flow[(src, dest)] = 0
         self.flow[(dest, src)] = 0
@@ -547,9 +548,8 @@ class Graph(Digraph):
 
 
 # Erstellen eines Graphen mit Graphviz
-def visualize_graph(pgraph):
-    # Check if the graph is directed or not
-    if isinstance(pgraph, Digraph):
+def visualize_graph(pgraph, directed=False):
+    if directed:
         dot = graphviz.Digraph()
     else:
         dot = graphviz.Graph()
@@ -557,11 +557,9 @@ def visualize_graph(pgraph):
     for src in pgraph.adj_list:
         dot.node(str(src))
         for dest in pgraph.adj_list[src]:
-            if isinstance(pgraph, Digraph):
-                # In a directed graph, we just add the edge with weight
+            if directed:
                 dot.edge(str(src), str(dest), label=str(pgraph.weights[(src, dest)]))
             else:
-                # In an undirected graph, we check if the reverse edge was added
                 if (dest, src) not in pgraph.weights or (src, dest) in pgraph.weights:
                     dot.edge(str(src), str(dest), label=str(pgraph.weights[(src, dest)]))
 
@@ -586,16 +584,64 @@ def visualize_flow_network(flow_network):
     dot.view()
 
 
-edge_list = [
-    ('S', 'A', 1, 16),
-    ('S', 'B', 1, 13),
-    ('B', 'T', 1, 7),
-    ('A', 'B', 1, 10),
-    ('A', 'T', 1, 4),
+# edge_list = [
+#     ('S', 'A', 1, 16),
+#     ('S', 'B', 1, 13),
+#     ('B', 'T', 1, 7),
+#     ('A', 'B', 1, 10),
+#     ('A', 'T', 1, 4),
+# ]
+#
+# graph = Graph(edge_list)
+# source, sink = 'S', 'T'
+# max_flow = graph.ford_fulkerson(source, sink)
+# print(f"Der maximale Fluss von {source} nach {sink} ist {max_flow}.")
+# visualize_flow_network(graph)
+
+distance_matrix_part1 = [
+    [0.0, 55.06, 113.97, 95.67, 135.77, 190.35, 161.31, 143.53, 72.3, 60.08, 77.69, 107.26, 137.8, 70.98, 87.31, 105.82, 34.12, 75.95, 152.23, 158.66, 61.91, 46.6, 69.21, 49.02],
+    [55.06, 0.0, 61.79, 65.16, 90.83, 156.84, 119.42, 126.97, 38.16, 48.91, 53.72, 81.71, 101.17, 33.78, 38.2, 59.99, 22.44, 65.76, 123.63, 121.46, 17.73, 11.67, 14.98, 26.93],
+    [113.97, 61.79, 0.0, 53.04, 37.98, 111.63, 66.95, 108.37, 80.78, 74.79, 61.01, 66.41, 60.28, 48.29, 27.34, 21.95, 79.91, 79.57, 89.61, 75.45, 67.49, 73.19, 46.86, 68.11],
+    [95.67, 65.16, 53.04, 0.0, 47.93, 95.27, 67.6, 63.51, 100.98, 37.5, 18.41, 17.19, 42.33, 31.41, 39.09, 31.32, 68.46, 31.48, 59.16, 63.07, 81.05, 74.95, 57.47, 48.75],
+    [135.77, 90.83, 37.98, 47.93, 0.0, 73.7, 29.53, 81.41, 116.62, 83.27, 64.63, 51.4, 26.69, 64.8, 52.69, 30.94, 103.67, 79.38, 56.03, 37.81, 100.85, 102.46, 77.24, 86.78],
+    [190.35, 156.84, 111.63, 95.27, 73.7, 0.0, 46.69, 65.69, 187.67, 130.53, 112.73, 83.37, 55.72, 124.81, 121.15, 99.66, 163.54, 117.15, 39.72, 36.47, 169.98, 167.8, 145.43, 143.98],
+    [161.31, 119.42, 66.95, 67.6, 29.53, 46.69, 0.0, 75.73, 146.16, 105.05, 85.91, 63.63, 27.4, 91.03, 81.58, 59.52, 130.56, 96.99, 43.81, 17.01, 130.16, 130.96, 106.28, 112.5],
+    [143.53, 126.97, 108.37, 63.51, 81.41, 65.69, 75.73, 0.0, 163.97, 85.53, 73.57, 46.32, 55.37, 93.59, 101.93, 87.67, 124.87, 67.96, 32.78, 59.48, 143.72, 135.49, 120.78, 105.44],
+    [72.3, 38.16, 80.78, 100.98, 116.62, 187.67, 146.16, 163.97, 0.0, 86.77, 91.45, 118.02, 132.33, 70.42, 66.7, 88.04, 52.19, 103.89, 157.55, 151.36, 20.52, 34.05, 43.66, 64.39],
+    [60.08, 48.91, 74.79, 37.5, 83.27, 130.53, 105.05, 85.53, 86.77, 0.0, 19.15, 47.24, 79.65, 27.69, 49.39, 58.03, 40.05, 18.23, 92.15, 100.15, 66.59, 53.94, 50.68, 22.48],
+    [77.69, 53.72, 61.01, 18.41, 64.63, 112.73, 85.91, 73.57, 91.45, 19.15, 0.0, 30.44, 60.7, 21.94, 39.3, 41.73, 52.5, 18.69, 75.29, 81.35, 70.96, 61.92, 49.89, 32.62],
+    [107.26, 81.71, 66.41, 17.19, 51.4, 83.37, 63.63, 46.32, 118.02, 47.24, 30.44, 0.0, 36.29, 47.97, 55.9, 44.55, 82.88, 34.59, 45.04, 55.03, 97.96, 91.05, 74.6, 62.98],
+    [137.8, 101.17, 60.28, 42.33, 26.69, 55.72, 27.4, 55.37, 132.33, 79.65, 60.7, 36.29, 0.0, 69.68, 65.65, 44.72, 108.98, 70.14, 29.75, 20.92, 114.32, 112.21, 89.75, 89.88],
+    [70.98, 33.78, 48.29, 31.41, 64.8, 124.81, 91.03, 93.59, 70.42, 27.69, 21.94, 47.97, 69.68, 0.0, 21.85, 35.22, 39.59, 38.43, 90.25, 90.48, 50.14, 43.64, 28.01, 22.03],
+    [87.31, 38.2, 27.34, 39.09, 52.69, 121.15, 81.58, 101.93, 66.7, 49.39, 39.3, 55.9, 65.65, 21.85, 0.0, 22.09, 53.52, 57.72, 91.34, 85.03, 48.97, 49.87, 24.71, 40.77],
+    [105.82, 59.99, 21.95, 31.32, 30.94, 99.66, 59.52, 87.67, 88.04, 58.03, 41.73, 44.55, 44.72, 35.22, 22.09, 0.0, 73.08, 59.67, 72.22, 63.32, 70.95, 71.59, 46.8, 57.17],
+    [34.12, 22.44, 79.91, 68.46, 103.67, 163.54, 130.56, 124.87, 52.19, 40.05, 52.5, 82.88, 108.98, 39.59, 53.52, 73.08, 0.0, 58.27, 127.38, 129.86, 35.01, 18.53, 35.47, 19.9],
+    [75.95, 65.76, 79.57, 31.48, 79.38, 117.15, 96.99, 67.96, 103.89, 18.23, 18.69, 34.59, 70.14, 38.43, 57.72, 59.67, 58.27, 0.0, 77.85, 89.56, 83.49, 71.74, 65.15, 40.26],
+    [152.23, 123.63, 89.61, 59.16, 56.03, 39.72, 43.81, 32.78, 157.55, 92.15, 75.29, 45.04, 29.75, 90.25, 91.34, 72.22, 127.38, 77.85, 0.0, 27.06, 138.48, 133.88, 114.06, 107.52],
+    [158.66, 121.46, 75.45, 63.07, 37.81, 36.47, 17.01, 59.48, 151.36, 100.15, 81.35, 55.03, 20.92, 90.48, 85.03, 63.32, 129.86, 89.56, 27.06, 0.0, 133.97, 132.65, 109.51, 110.8],
+    [61.91, 17.73, 67.49, 81.05, 100.85, 169.98, 130.16, 143.72, 20.52, 66.59, 70.96, 97.96, 114.32, 50.14, 48.97, 70.95, 35.01, 83.49, 138.48, 133.97, 0.0, 16.65, 24.59, 44.4],
+    [46.6, 11.67, 73.19, 74.95, 102.46, 167.8, 130.96, 135.49, 34.05, 53.94, 61.92, 91.05, 112.21, 43.64, 49.87, 71.59, 18.53, 71.74, 133.88, 132.65, 16.65, 0.0, 26.34, 31.51],
+    [69.21, 14.98, 46.86, 57.47, 77.24, 145.43, 106.28, 120.78, 43.66, 50.68, 49.89, 74.6, 89.75, 28.01, 24.71, 46.8, 35.47, 65.15, 114.06, 109.51, 24.59, 26.34, 0.0, 32.07],
+    [49.02, 26.93, 68.11, 48.75, 86.78, 143.98, 112.5, 105.44, 64.39, 22.48, 32.62, 62.98, 89.88, 22.03, 40.77, 57.17, 19.9, 40.26, 107.52, 110.8, 44.4, 31.51, 32.07, 0.0]
 ]
 
+
+# City names
+cities = ["Augsburg", "Ingolstadt", "Regensburg", "Landshut", "Straubing", "Passau", "Deggendorf", "Burghausen", "Weißenburg",
+          "Freising", "Moosburg a.d. Isar", "Vilsbiburg", "Landau a.d. Isar", "Mainburg", "Abensberg", "Schierling", "Schrobenhausen",
+          "Erding", "Pfarrkirchen", "Osterhofen", "Eichstätt", "Neuburg a.d. Donau", "Kösching", "Pfaffenhofen a.d. Ilm"]
+
+# Convert to edge list format
+edge_list = []
+
+for i in range(len(cities)):
+    for j in range(i + 1, len(cities)):
+        # does edge list already contain
+        if (cities[j], cities[i], distance_matrix_part1[j][i]) not in edge_list:
+            edge_list.append((cities[i], cities[j], distance_matrix_part1[i][j]))
+
 graph = Graph(edge_list)
-source, sink = 'S', 'T'
-max_flow = graph.ford_fulkerson(source, sink)
-print(f"Der maximale Fluss von {source} nach {sink} ist {max_flow}.")
-visualize_flow_network(graph)
+# prim jarnik for mst
+total_cost, mst = graph.prim_jarnik("Augsburg")
+print(f"Total cost of the minimum spanning tree: {total_cost}")
+visualize_graph(mst)
