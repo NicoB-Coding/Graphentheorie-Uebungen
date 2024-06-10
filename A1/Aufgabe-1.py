@@ -4,6 +4,9 @@ import numpy as np
 import pandas as pd
 import heapq
 from collections import deque
+from pyparsing import Word, alphas, alphanums, Suppress, Group, Optional, OneOrMore, dblQuotedString, removeQuotes, Literal, nums
+from collections import deque, defaultdict
+import itertools
 
 class Digraph:
     def __init__(self, edge_list=None):
@@ -62,7 +65,7 @@ class Graph(Digraph):
 
     def add_edge(self, src, dest, weight=1, capacity=float('inf')):
         super().add_edge(src, dest, weight, capacity)
-        if (dest, src) not in self.capacities and capacity != float('inf'):
+        if (dest, src) not in self.capacities:
             super().add_edge(dest, src, weight, 0)  # Add reverse edge with 0 capacity
         self.flow[(src, dest)] = 0
         self.flow[(dest, src)] = 0
@@ -560,6 +563,140 @@ class Graph(Digraph):
                     queue.append(v)
         return layers
 
+    def bfs_layers(self, s, t):
+        from collections import deque
+        layers = {v: float('inf') for v in self.adj_list}
+        queue = deque([s])
+        layers[s] = 0
+
+        while queue:
+            u = queue.popleft()
+            for v in self.adj_list[u]:
+                if self.capacities[(u, v)] - self.flow[(u, v)] > 0 and layers[v] == float('inf'):
+                    layers[v] = layers[u] + 1
+                    queue.append(v)
+        return layers
+
+    def dfs_flow(self, u, t, flow, layers, start):
+        if u == t:
+            return flow
+        while start[u] < len(self.adj_list[u]):
+            v = self.adj_list[u][start[u]]
+            if layers[v] == layers[u] + 1 and self.capacities[(u, v)] - self.flow[(u, v)] > 0:
+                curr_flow = min(flow, self.capacities[(u, v)] - self.flow[(u, v)])
+                temp_flow = self.dfs_flow(v, t, curr_flow, layers, start)
+                if temp_flow > 0:
+                    self.flow[(u, v)] += temp_flow
+                    self.flow[(v, u)] -= temp_flow
+                    return temp_flow
+            start[u] += 1
+        return 0
+
+    def dinic_max_flow(self, s, t):
+        total_flow = 0
+        while True:
+            layers = self.bfs_layers(s, t)
+            if layers[t] == float('inf'):
+                break
+            start = {v: 0 for v in self.adj_list}
+            while True:
+                flow = self.dfs_flow(s, t, float('inf'), layers, start)
+                if flow == 0:
+                    break
+                total_flow += flow
+        return total_flow
+
+    def mkm_blocking_flow(self, s, t):
+        layers = self.bfs_layers(s, t)
+        if layers[t] == float('inf'):
+            return 0  # No more augmenting paths
+
+        start = {v: 0 for v in self.adj_list}
+        excess = defaultdict(int)
+
+        def send_flow(u, flow):
+            if u == t:
+                return flow
+            while start[u] < len(self.adj_list[u]):
+                v = self.adj_list[u][start[u]]
+                if layers[v] == layers[u] + 1 and self.capacities[(u, v)] - self.flow[(u, v)] > 0:
+                    current_flow = min(flow, self.capacities[(u, v)] - self.flow[(u, v)])
+                    temp_flow = send_flow(v, current_flow)
+                    if temp_flow > 0:
+                        self.flow[(u, v)] += temp_flow
+                        self.flow[(v, u)] -= temp_flow
+                        return temp_flow
+                start[u] += 1
+            return 0
+
+        total_flow = 0
+        while True:
+            flow = send_flow(s, float('inf'))
+            if flow == 0:
+                break
+            total_flow += flow
+
+        return total_flow
+
+    def mkm_max_flow(self, s, t):
+        total_flow = 0
+        while True:
+            flow = self.mkm_blocking_flow(s, t)
+            if flow == 0:
+                break
+            total_flow += flow
+        return total_flow
+
+    def prim(self, terminals):
+        """
+        Prim's algorithm to construct a minimum spanning tree (MST) for the terminal nodes.
+        """
+        mst = Graph()
+        total_cost = 0
+        visited = set()
+        edges = []
+
+        start_terminal = next(iter(terminals))
+        visited.add(start_terminal)
+
+        for neighbor in self.adj_list[start_terminal]:
+            heapq.heappush(edges, (self.weights[(start_terminal, neighbor)], start_terminal, neighbor))
+
+        while edges:
+            weight, u, v = heapq.heappop(edges)
+            if v not in visited:
+                visited.add(v)
+                mst.add_edge(u, v, weight)
+                total_cost += weight
+
+                for next_neighbor in self.adj_list[v]:
+                    if next_neighbor not in visited:
+                        heapq.heappush(edges, (self.weights[(v, next_neighbor)], v, next_neighbor))
+
+        return total_cost, mst
+
+    def steiner_tree(self, terminals, steiner_nodes):
+        """
+        Function to compute the Steiner Tree for given terminal nodes and optional Steiner nodes.
+        This uses a heuristic approach based on Prim's algorithm.
+        """
+        full_nodes = set(terminals) | set(steiner_nodes)
+        steiner_tree = Graph()
+
+        # Compute MST for terminal nodes using Prim's algorithm
+        _, mst = self.prim(terminals)
+
+        # Include Steiner nodes if they reduce the total cost
+        for steiner_node in steiner_nodes:
+            for u, v in itertools.combinations(mst.adj_list.keys(), 2):
+                if steiner_node in self.adj_list[u] and steiner_node in self.adj_list[v]:
+                    if self.weights[(u, steiner_node)] + self.weights[(steiner_node, v)] < self.weights.get((u, v), float('inf')):
+                        if mst.capacities.get((u, v), float('inf')) > 0:
+                            mst.delete_edge(u, v)
+                        mst.add_edge(u, steiner_node, self.weights[(u, steiner_node)])
+                        mst.add_edge(steiner_node, v, self.weights[(steiner_node, v)])
+
+        return mst
 
 def auxnet(flow_network, s, t):
     layers = flow_network.bfs_layers(s)
@@ -578,6 +715,42 @@ def auxnet(flow_network, s, t):
                                          flow_network.capacities[(src, dest)])
 
     return layered_network
+
+
+def parse_dot_file(dot_content):
+    # Define grammar for parsing DOT files
+    identifier = Word(alphanums + '_\\n')
+    quote_id = dblQuotedString.setParseAction(removeQuotes)
+    node_id = identifier | quote_id
+    edge = Group(node_id + "->" + node_id + Suppress("[label=") + Word(nums) + Suppress("];"))
+    edges = OneOrMore(edge)
+
+    nodes_start = Suppress(Literal("{")) + OneOrMore(node_id + Suppress(";"))
+    nodes_end = Suppress(node_id + Optional(Suppress("[fillcolor=") + quote_id + Suppress("]")) + Suppress(";"))
+    nodes = OneOrMore(nodes_end)
+
+    dot_parser = Suppress("strict digraph") + Suppress("{") + Suppress("margin=-0.015;rankdir=LR;") + Suppress(
+        "node [style=solid, shape=circle, style=filled];") + Suppress("rankdir=LR") + nodes + edges + Suppress("}")
+
+    parsed_data = dot_parser.parseString(dot_content)
+
+    edge_list = []
+    for item in parsed_data:
+        if len(item) == 4:
+            src, dest, capacity = item[0], item[2], int(item[3])
+            edge_list.append((src, dest, 1, capacity))
+
+    return edge_list
+
+def create_graph_from_dot(dot_content):
+    edge_list = parse_dot_file(dot_content)
+    return Graph(edge_list)
+
+def create_graph_from_dot_file(file_path):
+    with open(file_path, 'r') as file:
+        dot_content = file.read()
+    return create_graph_from_dot(dot_content)
+
 
 # Erstellen eines Graphen mit Graphviz
 def visualize_graph(pgraph, directed=False):
@@ -615,25 +788,14 @@ def visualize_flow_network(flow_network):
     dot.render('flow_network', format='png', cleanup=True)
     dot.view()
 
-edge_list = [
-    ('s', 'a', 1, 10),
-    ('s', 'b', 1, 10),
-    ('a', 'c', 1, 4),
-    ('a', 'b', 1, 8),
-    ('a', 'd', 1, 8),
-    ('b', 'c', 1, 4),
-    ('b', 'a', 1, 8),
-    ('b', 'd', 1, 9),
-    ('c', 't', 1, 10),
-    ('d', 't', 1, 10)
-]
-
-flow_network = Graph(edge_list)
-visualize_flow_network(flow_network)
-
-s, t = 's', 't'
-layered_network = auxnet(flow_network, 's', 't')
-#visualize_flow_network(layered_network)
+# file_path = 'Uebung11.dot'
+# graph = create_graph_from_dot_file(file_path)
+# visualize_flow_network(graph)
+# # dinic
+# #max_flow = graph.dinic_max_flow('s\\nsource', 't\\nsink')
+# #mkm
+# max_flow = graph.mkm_max_flow('s\\nsource', 't\\nsink')
+# print(f"Max flow: {max_flow}")
 
 
 distance_matrix_part1 = [[0.0, 56.26, 71.42, 104.88, 62.6, 110.37, 147.26, 128.92, 91.77, 106.41, 30.12, 46.22, 66.19, 102.04, 57.57, 79.39, 87.44, 54.43, 31.93, 107.59, 121.23, 87.84, 72.38, 77.29, 45.43],
@@ -664,21 +826,25 @@ distance_matrix_part1 = [[0.0, 56.26, 71.42, 104.88, 62.6, 110.37, 147.26, 128.9
                         ]
 
 # City names
-#cities = ["München", "Augsburg", "Ingolstadt", "Regensburg", "Landshut", "Straubing", "Passau", "Deggendorf", "Burghausen", "Weißenburg",
-#          "Freising", "Moosburg a.d. Isar", "Vilsbiburg", "Landau a.d. Isar", "Mainburg", "Abensberg", "Schierling", "Schrobenhausen",
-#          "Erding", "Pfarrkirchen", "Osterhofen", "Eichstätt", "Neuburg a.d. Donau", "Kösching", "Pfaffenhofen a.d. Ilm"]
-# cities = ["München", "Augsburg", "Ingolstadt", "Regensburg", "Landshut", "Straubing", "Passau", "Deggendorf", "Burghausen", "Weißenburg"]
-# # Convert to edge list format
-# edge_list = []
-#
-# for i in range(len(cities)):
-#     for j in range(i + 1, len(cities)):
-#         # does edge list already contain
-#         if (cities[j], cities[i], distance_matrix_part1[j][i]) not in edge_list:
-#             edge_list.append((cities[i], cities[j], distance_matrix_part1[i][j]))
-#
-# graph = Graph(edge_list)
-# # prim jarnik for mst
-# total_cost, mst = graph.prim_jarnik("München")
-# print(f"Total cost of the minimum spanning tree: {total_cost}")
-# visualize_graph(mst)
+terminals = ["München", "Augsburg", "Ingolstadt", "Regensburg", "Landshut", "Straubing", "Passau", "Deggendorf", "Burghausen", "Weißenburg"]
+steiner_nodes = ["Freising", "Moosburg a.d. Isar", "Vilsbiburg", "Landau a.d. Isar", "Mainburg", "Abensberg", "Schierling", "Schrobenhausen",
+                 "Erding", "Pfarrkirchen", "Osterhofen", "Eichstätt", "Neuburg a.d. Donau", "Kösching", "Pfaffenhofen a.d. Ilm"]
+cities = terminals + steiner_nodes
+# Convert to edge list format
+edge_list = []
+
+for i in range(len(cities)):
+    for j in range(i + 1, len(cities)):
+        # does edge list already contain
+        if (cities[j], cities[i], distance_matrix_part1[j][i]) not in edge_list:
+            edge_list.append((cities[i], cities[j], distance_matrix_part1[i][j]))
+
+graph = Graph(edge_list)
+# prim jarnik for mst
+#total_cost, mst = graph.prim_jarnik("München")
+#print(f"Total cost of the minimum spanning tree: {total_cost}")
+#visualize_graph(mst)
+
+# steiner tree
+steiner_tree = graph.steiner_tree(terminals, steiner_nodes)
+visualize_graph(steiner_tree)
