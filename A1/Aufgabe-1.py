@@ -546,6 +546,38 @@ class Graph(Digraph):
 
         return total_cost, mst
 
+    def bfs_layers(self, s):
+        from collections import deque
+        layers = {v: float('inf') for v in self.adj_list}
+        queue = deque([s])
+        layers[s] = 0
+
+        while queue:
+            u = queue.popleft()
+            for v in self.adj_list[u]:
+                if layers[v] == float('inf'):  # Not visited
+                    layers[v] = layers[u] + 1
+                    queue.append(v)
+        return layers
+
+
+def auxnet(flow_network, s, t):
+    layers = flow_network.bfs_layers(s)
+    layered_network = Graph()
+
+    # Add vertices that are within valid layers
+    for v in flow_network.adj_list:
+        if layers[v] < layers[t]:
+            layered_network.add_vertex(v)
+
+    # Add valid edges
+    for src in flow_network.adj_list:
+        for dest in flow_network.adj_list[src]:
+            if layers[src] < layers[dest] and layers[dest] < layers[t]:
+                layered_network.add_edge(src, dest, flow_network.weights[(src, dest)],
+                                         flow_network.capacities[(src, dest)])
+
+    return layered_network
 
 # Erstellen eines Graphen mit Graphviz
 def visualize_graph(pgraph, directed=False):
@@ -583,20 +615,26 @@ def visualize_flow_network(flow_network):
     dot.render('flow_network', format='png', cleanup=True)
     dot.view()
 
+edge_list = [
+    ('s', 'a', 1, 10),
+    ('s', 'b', 1, 10),
+    ('a', 'c', 1, 4),
+    ('a', 'b', 1, 8),
+    ('a', 'd', 1, 8),
+    ('b', 'c', 1, 4),
+    ('b', 'a', 1, 8),
+    ('b', 'd', 1, 9),
+    ('c', 't', 1, 10),
+    ('d', 't', 1, 10)
+]
 
-# edge_list = [
-#     ('S', 'A', 1, 16),
-#     ('S', 'B', 1, 13),
-#     ('B', 'T', 1, 7),
-#     ('A', 'B', 1, 10),
-#     ('A', 'T', 1, 4),
-# ]
-#
-# graph = Graph(edge_list)
-# source, sink = 'S', 'T'
-# max_flow = graph.ford_fulkerson(source, sink)
-# print(f"Der maximale Fluss von {source} nach {sink} ist {max_flow}.")
-# visualize_flow_network(graph)
+flow_network = Graph(edge_list)
+visualize_flow_network(flow_network)
+
+s, t = 's', 't'
+layered_network = auxnet(flow_network, 's', 't')
+#visualize_flow_network(layered_network)
+
 
 distance_matrix_part1 = [[0.0, 56.26, 71.42, 104.88, 62.6, 110.37, 147.26, 128.92, 91.77, 106.41, 30.12, 46.22, 66.19, 102.04, 57.57, 79.39, 87.44, 54.43, 31.93, 107.59, 121.23, 87.84, 72.38, 77.29, 45.43],
                          [56.26, 0.0, 55.06, 113.97, 95.67, 135.77, 190.35, 161.31, 143.53, 72.3, 60.08, 77.69, 107.26, 137.8, 70.98, 87.31, 105.82, 34.12, 75.95, 152.23, 158.66, 61.91, 46.6, 69.21, 49.02],
@@ -625,24 +663,22 @@ distance_matrix_part1 = [[0.0, 56.26, 71.42, 104.88, 62.6, 110.37, 147.26, 128.9
                          [45.43, 49.02, 26.93, 68.11, 48.75, 86.78, 143.98, 112.5, 105.44, 64.39, 22.48, 32.62, 62.98, 89.88, 22.03, 40.77, 57.17, 19.9, 40.26, 107.52, 110.8, 44.4, 31.51, 32.07, 0.0]
                         ]
 
-
-
 # City names
-cities = ["München", "Augsburg", "Ingolstadt", "Regensburg", "Landshut", "Straubing", "Passau", "Deggendorf", "Burghausen", "Weißenburg",
-          "Freising", "Moosburg a.d. Isar", "Vilsbiburg", "Landau a.d. Isar", "Mainburg", "Abensberg", "Schierling", "Schrobenhausen",
-          "Erding", "Pfarrkirchen", "Osterhofen", "Eichstätt", "Neuburg a.d. Donau", "Kösching", "Pfaffenhofen a.d. Ilm"]
-
-# Convert to edge list format
-edge_list = []
-
-for i in range(len(cities)):
-    for j in range(i + 1, len(cities)):
-        # does edge list already contain
-        if (cities[j], cities[i], distance_matrix_part1[j][i]) not in edge_list:
-            edge_list.append((cities[i], cities[j], distance_matrix_part1[i][j]))
-
-graph = Graph(edge_list)
-# prim jarnik for mst
-total_cost, mst = graph.prim_jarnik("München")
-print(f"Total cost of the minimum spanning tree: {total_cost}")
-visualize_graph(mst)
+#cities = ["München", "Augsburg", "Ingolstadt", "Regensburg", "Landshut", "Straubing", "Passau", "Deggendorf", "Burghausen", "Weißenburg",
+#          "Freising", "Moosburg a.d. Isar", "Vilsbiburg", "Landau a.d. Isar", "Mainburg", "Abensberg", "Schierling", "Schrobenhausen",
+#          "Erding", "Pfarrkirchen", "Osterhofen", "Eichstätt", "Neuburg a.d. Donau", "Kösching", "Pfaffenhofen a.d. Ilm"]
+# cities = ["München", "Augsburg", "Ingolstadt", "Regensburg", "Landshut", "Straubing", "Passau", "Deggendorf", "Burghausen", "Weißenburg"]
+# # Convert to edge list format
+# edge_list = []
+#
+# for i in range(len(cities)):
+#     for j in range(i + 1, len(cities)):
+#         # does edge list already contain
+#         if (cities[j], cities[i], distance_matrix_part1[j][i]) not in edge_list:
+#             edge_list.append((cities[i], cities[j], distance_matrix_part1[i][j]))
+#
+# graph = Graph(edge_list)
+# # prim jarnik for mst
+# total_cost, mst = graph.prim_jarnik("München")
+# print(f"Total cost of the minimum spanning tree: {total_cost}")
+# visualize_graph(mst)
